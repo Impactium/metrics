@@ -1,0 +1,56 @@
+name: metrics
+
+services:
+  nginx:
+    build:
+      dockerfile: etc/nginx/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}-nginx
+    restart: always
+    profiles:
+      - production
+    networks:
+      - default
+
+  client:
+    build:
+      context: client
+      dockerfile: client/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}-client
+    ports:
+      - 3000:3000
+    restart: always
+    profiles:
+      - production
+    networks:
+      - default
+
+  api:
+    build:
+      dockerfile: api/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}-api
+    env_file: .env
+    restart: always
+    profiles:
+      - production
+    networks:
+      - default
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    container_name: mongo
+    command: ["--bind_ip_all"]
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    env_file: .env
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  mongo_data: {}

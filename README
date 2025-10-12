@@ -1,0 +1,84 @@
+Установка speedtest (если не стоит):
+
+```bash
+curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
+sudo apt-get update
+sudo apt-get install -y speedtest curl
+```
+
+Директория для файлов:
+
+```bash
+sudo install -d -m 755 /var/lib/speedtest
+```
+
+Скрипт `/usr/local/bin/speedtest-post`:
+
+```bash
+sudo tee /usr/local/bin/speedtest-post >/dev/null <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+OUTDIR="/var/lib/speedtest"
+URL="https://metrics.impactium.dev/api/speedtest"
+
+mkdir -p "$OUTDIR"
+
+exec 9>"/var/run/speedtest-post.lock"
+flock -n 9 || exit 0
+
+NOW="$(date -u +'%Y%m%dT%H%M%SZ')"
+TMP="${OUTDIR}/.${NOW}.json.tmp"
+FILE="${OUTDIR}/${NOW}.json"
+
+/usr/bin/speedtest --accept-license --accept-gdpr -f json > "$TMP"
+mv "$TMP" "$FILE"
+
+/usr/bin/curl --fail --silent --show-error \
+  -X POST -H 'Content-Type: application/json' \
+  --data-binary @"$FILE" \
+  "$URL" >/dev/null
+EOF
+sudo chmod +x /usr/local/bin/speedtest-post
+```
+
+Юнит `/etc/systemd/system/speedtest-post.service`:
+
+```bash
+sudo tee /etc/systemd/system/speedtest-post.service >/dev/null <<'EOF'
+[Unit]
+Description=Run speedtest and POST result
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/speedtest-post
+User=root
+Nice=10
+IOSchedulingClass=best-effort
+EOF
+```
+
+Таймер `/etc/systemd/system/speedtest-post.timer`:
+
+```bash
+sudo tee /etc/systemd/system/speedtest-post.timer >/dev/null <<'EOF'
+[Unit]
+Description=Run speedtest-post every 10 minutes
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+EOF
+```
+
+Активация:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now speedtest-post.timer
+```
+
