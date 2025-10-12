@@ -14,7 +14,6 @@ services:
   client:
     build:
       context: client
-      dockerfile: client/Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME}-client
     ports:
       - 3000:3000
