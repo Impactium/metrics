@@ -1,16 +1,11 @@
 {
-  "name": "studio-admin",
+  "name": "client",
   "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start"
-  },
-  "lint-staged": {
-    "*.{js,ts,jsx,tsx}": [
-      "eslint --fix"
-    ]
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
