@@ -5,11 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "prepare": "husky"
+    "start": "next start"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
