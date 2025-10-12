@@ -25,7 +25,7 @@ services:
 
   api:
     build:
-      dockerfile: api/Dockerfile
+      context: api
     container_name: ${COMPOSE_PROJECT_NAME}-api
     env_file: .env
     restart: always
