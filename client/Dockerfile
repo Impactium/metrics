@@ -6,7 +6,7 @@ RUN npm install -g pnpm@latest
 FROM node-with-pnpm AS base
 WORKDIR /app
 
-COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY pnpm-lock.yaml package.json ./
 
 RUN pnpm -r install
 
