@@ -15,7 +15,7 @@ services:
     build:
       context: client
     container_name: ${COMPOSE_PROJECT_NAME}-client
-    command: next start
+    command: pnpm run start
     ports:
       - 3000:3000
     restart: always
