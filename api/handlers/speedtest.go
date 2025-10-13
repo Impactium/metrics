@@ -11,7 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func CreateSpeedtest(c *gin.Context) {
+func SpeedtestCreate(c *gin.Context) {
 	var in models.Speedtest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -21,7 +21,7 @@ func CreateSpeedtest(c *gin.Context) {
 	now := time.Now().UTC()
 	in.ReceivedAt = &now
 
-	if err := storage.InsertSpeedtest(c.Request.Context(), &in); err != nil {
+	if err := storage.SpeedtestInsert(c.Request.Context(), &in); err != nil {
 		if we, ok := err.(mongo.WriteException); ok {
 			for _, e := range we.WriteErrors {
 				if e.Code == 11000 {
@@ -37,7 +37,7 @@ func CreateSpeedtest(c *gin.Context) {
 	c.JSON(http.StatusCreated, true)
 }
 
-func ListSpeedtests(c *gin.Context) {
+func SpeedtestList(c *gin.Context) {
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
 
@@ -67,7 +67,7 @@ func ListSpeedtests(c *gin.Context) {
 		to = &t
 	}
 
-	items, err := storage.QuerySpeedtests(c.Request.Context(), from, to)
+	items, err := storage.SpeedtestQuery(c.Request.Context(), from, to)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_query_failed"})
 		return
@@ -95,25 +95,25 @@ type trendingResponse struct {
 	} `json:"ping"`
 }
 
-func TrendingSpeedtest(c *gin.Context) {
+func SpeedtestTrending(c *gin.Context) {
 	ctx := c.Request.Context()
 	now := time.Now().UTC()
 	from24h := now.Add(-24 * time.Hour)
 	from7d := now.Add(-7 * 24 * time.Hour)
 
-	totalSum, err := storage.CountSpeedtests(ctx, nil, nil)
+	totalSum, err := storage.SpeedtestCount(ctx, nil, nil)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_failed"})
 		return
 	}
 
-	trendingCount, err := storage.CountSpeedtests(ctx, &from24h, &now)
+	trendingCount, err := storage.SpeedtestCount(ctx, &from24h, &now)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_24h_failed"})
 		return
 	}
 
-	weekItems, err := storage.QuerySpeedtests(ctx, &from7d, &now)
+	weekItems, err := storage.SpeedtestQuery(ctx, &from7d, &now)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_query_week_failed"})
 		return
@@ -140,7 +140,7 @@ func TrendingSpeedtest(c *gin.Context) {
 	}
 
 	var lastDown, lastUp, lastPing int
-	latest, err := storage.QueryLatestSpeedtest(ctx, &from24h, &now)
+	latest, err := storage.SpeedtestQueryLatest(ctx, &from24h, &now)
 	if err == nil && latest != nil {
 		lastDown = latest.Download.Bandwidth
 		lastUp = latest.Upload.Bandwidth

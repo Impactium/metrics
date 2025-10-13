@@ -10,10 +10,11 @@ import (
 )
 
 var (
-	client   *mongo.Client
-	db       *mongo.Database
-	col      *mongo.Collection
-	usersCol *mongo.Collection
+	client     *mongo.Client
+	db         *mongo.Database
+	speedtests *mongo.Collection
+	users      *mongo.Collection
+	logs       *mongo.Collection
 )
 
 func Connect(ctx context.Context) error {
@@ -31,8 +32,9 @@ func Connect(ctx context.Context) error {
 	}
 	client = c
 	db = client.Database(name)
-	col = db.Collection("speedtests")
-	usersCol = db.Collection("users")
+	speedtests = db.Collection("speedtests")
+	users = db.Collection("users")
+	logs = db.Collection("logs")
 	return nil
 }
 
@@ -44,17 +46,31 @@ func Disconnect(ctx context.Context) {
 
 func EnsureIndexes(ctx context.Context) error {
 	// speedtests
-	_, err := col.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	_, err := speedtests.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "timestamp", Value: 1}}},
 		{Keys: bson.D{{Key: "result.id", Value: 1}}, Options: options.Index().SetUnique(true)},
 	})
+
 	if err != nil {
 		return err
 	}
+
 	// users
-	_, err = usersCol.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	_, err = users.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true)},
 	})
+
+	if err != nil {
+		return err
+	}
+
+	// logs
+	_, err = logs.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{Keys: bson.D{{Key: "req_id", Value: 1}}, Options: options.Index().SetUnique(true)},
+		{Keys: bson.D{{Key: "status", Value: 1}}, Options: options.Index().SetUnique(true)},
+		{Keys: bson.D{{Key: "timestamp", Value: 1}}, Options: options.Index().SetUnique(true)},
+	})
+
 	return err
 }
 

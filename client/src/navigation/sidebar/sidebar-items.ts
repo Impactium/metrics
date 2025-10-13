@@ -34,6 +34,11 @@ export const sidebarItems: NavGroup[] = [
         title: "Speedtest",
         url: "/dashboard/speedtest",
         icon: 'Gauge',
+      },
+      {
+        title: "Logs",
+        url: "/dashboard/logs",
+        icon: 'FunctionSquare',
       }
     ],
   },

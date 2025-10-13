@@ -15,6 +15,7 @@ import { Icon } from "@impactium/icons";
 
 const searchItems = [
   { group: "Dashboards", icon: 'Gauge', label: "Speedtest" },
+  { group: "Dashboards", icon: 'FunctionSquare', label: "Log" },
   { group: "Authentication", icon: 'Fingerprint', label: "Login" },
   { group: "Authentication", icon: 'Fingerprint', label: "Register" },
 ] as const;

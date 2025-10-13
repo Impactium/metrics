@@ -23,18 +23,17 @@ export async function SectionCards() {
     credentials: 'include',
     headers: { Authorization: authorizationCookie.value },
     cache: 'no-store',
-  }).then((response) => (response.ok ? response.json().then((payload) => payload.data as SectionCards.Trending) : null)).catch();
+  }).then((response) => (response.ok ? response.json().then((payload) => payload.data) : null)).catch();
 
   if (!trending) return null;
 
-  const formatMbps = (value: number) => String(Math.round(value * 10) / 10);
-  const formatMilliseconds = (value: number) => String(Math.round(value * 10) / 10);
+  const format = (value: number) => Math.round(value * 10) / 10;
 
   const calculatePercentChange = (currentValue: number, baselineValue: number) =>
     baselineValue === 0 ? (currentValue === 0 ? 0 : 100) : ((currentValue - baselineValue) / baselineValue) * 100;
 
   const formatSignedPercent = (percent: number) =>
-    `${percent > 0 ? '+' : percent < 0 ? '-' : '+'}${Math.abs(Math.round(percent * 10) / 10).toFixed(1)}%`;
+    `${percent > 0 ? '+' : percent < 0 ? '-' : '+'}${Math.abs(format(percent)).toFixed(1)}%`;
 
   const selectTrendIcon = (percent: number, higherIsBetter: boolean): Icon.Name => {
     const improved = higherIsBetter ? percent > 0 : percent < 0;
@@ -50,7 +49,7 @@ export async function SectionCards() {
     const percent = calculatePercentChange(lastMbps, averageMbps);
     const improved = percent > 0;
     return {
-      titleValue: `${formatMbps(averageMbps * 8 / 1_000_000)}Mbps`,
+      titleValue: `${format(averageMbps * 8 / 1_000_000)}Mbps`,
       signedPercent: formatSignedPercent(percent),
       percent,
       iconName: selectTrendIcon(percent, true),
@@ -63,7 +62,7 @@ export async function SectionCards() {
     const percent = calculatePercentChange(lastMs, averageMs);
     const improved = percent < 0;
     return {
-      titleValue: `${formatMilliseconds(averageMs)}ms`,
+      titleValue: `${format(averageMs)}ms`,
       signedPercent: formatSignedPercent(percent),
       percent,
       iconName: selectTrendIcon(percent, false),

@@ -9,12 +9,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func InsertSpeedtest(ctx context.Context, st *models.Speedtest) error {
-	_, err := col.InsertOne(ctx, st)
+func SpeedtestInsert(ctx context.Context, st *models.Speedtest) error {
+	_, err := speedtests.InsertOne(ctx, st)
 	return err
 }
 
-func QuerySpeedtests(ctx context.Context, from, to *time.Time) ([]models.Speedtest, error) {
+func SpeedtestQuery(ctx context.Context, from, to *time.Time) ([]models.Speedtest, error) {
 	filter := bson.D{}
 	if from != nil || to != nil {
 		r := bson.D{}
@@ -27,7 +27,7 @@ func QuerySpeedtests(ctx context.Context, from, to *time.Time) ([]models.Speedte
 		filter = append(filter, bson.E{Key: "timestamp", Value: r})
 	}
 
-	cur, err := col.Find(ctx, filter, optionsFind())
+	cur, err := speedtests.Find(ctx, filter, optionsFind())
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func QuerySpeedtests(ctx context.Context, from, to *time.Time) ([]models.Speedte
 	return out, cur.Err()
 }
 
-func CountSpeedtests(ctx context.Context, from, to *time.Time) (int64, error) {
+func SpeedtestCount(ctx context.Context, from, to *time.Time) (int64, error) {
 	filter := bson.D{}
 	if from != nil || to != nil {
 		r := bson.D{}
@@ -56,10 +56,10 @@ func CountSpeedtests(ctx context.Context, from, to *time.Time) (int64, error) {
 		}
 		filter = append(filter, bson.E{Key: "timestamp", Value: r})
 	}
-	return col.CountDocuments(ctx, filter)
+	return speedtests.CountDocuments(ctx, filter)
 }
 
-func QueryLatestSpeedtest(ctx context.Context, from, to *time.Time) (*models.Speedtest, error) {
+func SpeedtestQueryLatest(ctx context.Context, from, to *time.Time) (*models.Speedtest, error) {
 	filter := bson.D{}
 	if from != nil || to != nil {
 		r := bson.D{}
@@ -74,7 +74,7 @@ func QueryLatestSpeedtest(ctx context.Context, from, to *time.Time) (*models.Spe
 
 	opts := options.FindOne().SetSort(bson.D{{Key: "timestamp", Value: -1}})
 	var out models.Speedtest
-	err := col.FindOne(ctx, filter, opts).Decode(&out)
+	err := speedtests.FindOne(ctx, filter, opts).Decode(&out)
 	if err != nil {
 		return nil, err
 	}

@@ -9,13 +9,13 @@ import (
 )
 
 func CreateUser(ctx context.Context, u *models.User) error {
-	_, err := usersCol.InsertOne(ctx, u)
+	_, err := users.InsertOne(ctx, u)
 	return err
 }
 
 func GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	var u models.User
-	err := usersCol.FindOne(ctx, bson.M{"email": email}).Decode(&u)
+	err := users.FindOne(ctx, bson.M{"email": email}).Decode(&u)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +24,7 @@ func GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 
 func GetUserByID(ctx context.Context, id primitive.ObjectID) (*models.User, error) {
 	var u models.User
-	err := usersCol.FindOne(ctx, bson.M{"_id": id}).Decode(&u)
+	err := users.FindOne(ctx, bson.M{"_id": id}).Decode(&u)
 	if err != nil {
 		return nil, err
 	}

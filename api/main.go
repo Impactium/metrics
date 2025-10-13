@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"metrics/broadcast"
 	"metrics/handlers"
 	"metrics/middlewares"
 	"metrics/storage"
@@ -40,7 +41,11 @@ func main() {
 	r.Use(middlewares.RequestMiddleware())
 	r.Use(middlewares.ResponseWrapper())
 
+	broadcast.Broadcaster = broadcast.NewBroadcast()
+
 	api := r.Group("/api")
+
+	api.GET("/ws", broadcast.Handler())
 
 	// auth
 	auth := api.Group("/auth")
@@ -49,9 +54,14 @@ func main() {
 	auth.GET("/profile", middlewares.AuthRequired(), handlers.Profile)
 
 	// speedtest
-	api.POST("/speedtest", handlers.CreateSpeedtest)
-	api.GET("/speedtest", middlewares.AuthRequired(), handlers.ListSpeedtests)
-	api.GET("/speedtest/tranding", middlewares.AuthRequired(), handlers.TrendingSpeedtest)
+	api.POST("/speedtest", handlers.SpeedtestCreate)
+	api.GET("/speedtest", middlewares.AuthRequired(), handlers.SpeedtestList)
+	api.GET("/speedtest/tranding", middlewares.AuthRequired(), handlers.SpeedtestTrending)
+
+	// logs
+	api.POST("/logs", handlers.LogCreate)
+	api.GET("/logs", middlewares.AuthRequired(), handlers.LogList)
+	api.GET("/logs/count", middlewares.AuthRequired(), handlers.LogCount)
 
 	srv := &http.Server{
 		Addr:              ":1337",
