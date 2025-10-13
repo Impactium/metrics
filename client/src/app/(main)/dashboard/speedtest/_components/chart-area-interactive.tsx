@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
+import { formatBytesToMbps, formatPrecision } from "./utils";
 
-export namespace Speedtest {
-  export interface Type {
+export namespace ChartAreaInteractive {
+  export interface SpeedtestRecord {
     empty?: boolean;
     type: string;
     timestamp: string;
@@ -32,6 +33,22 @@ export namespace Speedtest {
     interface: { internalIp: string; name: string; macAddr: string; isVpn: boolean; externalIp: string };
     server: { id: number; host: string; port: number; name: string; location: string; country: string; ip: string };
     result: { id: string; persisted: boolean; url: string };
+  }
+
+  export type TimeRange = "7d" | "30d" | "90d";
+
+  export type AggregatedPoint<T> = {
+    date: string;
+  } & T
+
+  export interface SpeedPointFields {
+    download: number;
+    upload: number;
+  }
+
+  export interface LatencyPointFields {
+    ping: number;
+    jitter: number;
   }
 }
 
@@ -52,11 +69,13 @@ const MS10 = 10 * MS_MIN;
 
 export function ChartAreaInteractive() {
   const isMobile = useIsMobile();
-  const [timeRange, setTimeRange] = React.useState<"7d" | "30d" | "90d">("90d");
-  const [chartData, setChartData] = React.useState<Speedtest.Type[]>([]);
+  const [timeRange, setTimeRange] = React.useState<ChartAreaInteractive.TimeRange>("90d");
+  const [chartData, setChartData] = React.useState<ChartAreaInteractive.SpeedtestRecord[]>([]);
 
   React.useEffect(() => {
-    fetch(`/api/speedtest?from=${Date.now() - 90 * 24 * 60 * 60 * 1000}&to=${Date.now()}`, { credentials: "include" })
+    const now = Date.now();
+    const from = now - 90 * 24 * 60 * 60 * 1000;
+    fetch(`/api/speedtest?from=${from}&to=${now}`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : (toast.error("Failed to fetch", { richColors: true }), { data: [] })))
       .then((json) => setChartData(json.data));
   }, []);
@@ -65,27 +84,33 @@ export function ChartAreaInteractive() {
     if (isMobile) setTimeRange("7d");
   }, [isMobile]);
 
-  const floorTo10m = React.useCallback((ts: number) => {
-    const d = new Date(ts);
+  const floorTo10Minutes = React.useCallback((timestamp: number) => {
+    const d = new Date(timestamp);
     d.setSeconds(0, 0);
-    d.setMinutes(Math.floor(d.getMinutes() / 10) * 10);
+    d.setMinutes(formatPrecision(d.getMinutes()));
     return d.getTime();
   }, []);
 
-  const floorToHourStep = React.useCallback((ts: number, hoursStep: number) => {
-    const d = new Date(ts);
+  const floorToHourStep = React.useCallback((timestamp: number, hoursStep: number) => {
+    const d = new Date(timestamp);
     d.setMinutes(0, 0, 0);
     const hours = d.getHours();
     d.setHours(Math.floor(hours / hoursStep) * hoursStep);
     return d.getTime();
   }, []);
 
-  const daysToSubtract = React.useMemo(() => (timeRange === "30d" ? 30 : timeRange === "7d" ? 7 : 90), [timeRange]);
-  const groupHours = React.useMemo(() => (timeRange === "7d" ? 4 : timeRange === "30d" ? 24 : 48), [timeRange]);
+  const daysToSubtract = React.useMemo(
+    () => (timeRange === "30d" ? 30 : timeRange === "7d" ? 7 : 90),
+    [timeRange]
+  );
+  const groupHours = React.useMemo(
+    () => (timeRange === "7d" ? 1 : timeRange === "30d" ? 4 : 12),
+    [timeRange]
+  );
   const groupMs = React.useMemo(() => groupHours * 60 * MS_MIN, [groupHours]);
 
-  const nowTs = React.useMemo(() => Date.now(), []);
-  const startTs = React.useMemo(() => {
+  const nowTimestamp = React.useMemo(() => Date.now(), []);
+  const startTimestamp = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - daysToSubtract);
     return d.getTime();
@@ -94,9 +119,9 @@ export function ChartAreaInteractive() {
   const filteredSorted = React.useMemo(
     () =>
       chartData
-        .filter((it) => new Date(it.timestamp).getTime() >= startTs)
+        .filter((it) => new Date(it.timestamp).getTime() >= startTimestamp)
         .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
-    [chartData, startTs]
+    [chartData, startTimestamp]
   );
 
   const maps = React.useMemo(() => {
@@ -105,73 +130,137 @@ export function ChartAreaInteractive() {
 
     for (const item of filteredSorted) {
       if (item.empty) continue;
-      const bucketTs = floorTo10m(new Date(item.timestamp).getTime());
-      if (!speedMap.has(bucketTs)) {
-        speedMap.set(bucketTs, {
-          // keep numbers, not strings
-          download: Math.round(((item.download.bandwidth * 8) / 1_000_000) * 10) / 10,
-          upload: Math.round(((item.upload.bandwidth * 8) / 1_000_000) * 10) / 10,
+      const bucketTimestamp = floorTo10Minutes(new Date(item.timestamp).getTime());
+      if (!speedMap.has(bucketTimestamp)) {
+        speedMap.set(bucketTimestamp, {
+          download: formatBytesToMbps(item.download.bandwidth),
+          upload: formatBytesToMbps(item.upload.bandwidth),
         });
       }
-      if (!latencyMap.has(bucketTs)) {
-        latencyMap.set(bucketTs, {
+      if (!latencyMap.has(bucketTimestamp)) {
+        latencyMap.set(bucketTimestamp, {
           ping: Math.round(item.ping.latency),
           jitter: Math.round(item.ping.jitter),
         });
       }
     }
     return { speedMap, latencyMap };
-  }, [filteredSorted, floorTo10m]);
+  }, [filteredSorted, floorTo10Minutes]);
+
+  const formatAxisDate = React.useCallback(
+    (value: string | number) =>
+      new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    []
+  );
 
   const { speedData, latencyData } = React.useMemo(() => {
-    const speedAgg: Array<{ date: string; download: number; upload: number }> = [];
-    const latencyAgg: Array<{ date: string; ping: number; jitter: number }> = [];
+    const speedAggregated: Array<ChartAreaInteractive.AggregatedPoint<ChartAreaInteractive.SpeedPointFields>> = [];
+    const latencyAggregated: Array<ChartAreaInteractive.AggregatedPoint<ChartAreaInteractive.LatencyPointFields>> = [];
 
-    const rangeStart = floorToHourStep(startTs, groupHours);
-    const rangeEnd = floorToHourStep(nowTs, groupHours);
+    const rangeStart = floorToHourStep(startTimestamp, groupHours);
+    const rangeEnd = floorToHourStep(nowTimestamp, groupHours);
 
     for (let g = rangeStart; g <= rangeEnd; g += groupMs) {
-      let dSum = 0,
-        uSum = 0,
-        dCnt = 0;
-      let pSum = 0,
-        jSum = 0,
-        lCnt = 0;
+      let downloadSum = 0, uploadSum = 0, downloadCount = 0;
+      let pingSum = 0, jitterSum = 0, latencyCount = 0;
 
       for (let t = g; t < g + groupMs && t <= rangeEnd + groupMs - MS10; t += MS10) {
-        const s = maps.speedMap.get(t);
-        if (s) {
-          dSum += s.download;
-          uSum += s.upload;
-          dCnt++;
+        const speedEntry = maps.speedMap.get(t);
+        if (speedEntry) {
+          downloadSum += speedEntry.download;
+          uploadSum += speedEntry.upload;
+          downloadCount++;
         }
-        const l = maps.latencyMap.get(t);
-        if (l) {
-          pSum += l.ping;
-          jSum += l.jitter;
-          lCnt++;
+        const latencyEntry = maps.latencyMap.get(t);
+        if (latencyEntry) {
+          pingSum += latencyEntry.ping;
+          jitterSum += latencyEntry.jitter;
+          latencyCount++;
         }
       }
 
-      speedAgg.push({
+      speedAggregated.push({
         date: new Date(g).toISOString(),
-        download: dCnt > 0 ? Math.round((dSum / dCnt) * 10) / 10 : 0,
-        upload: dCnt > 0 ? Math.round((uSum / dCnt) * 10) / 10 : 0,
+        download: downloadCount > 0 ? formatPrecision(downloadSum / downloadCount) : 0,
+        upload: downloadCount > 0 ? formatPrecision(uploadSum / downloadCount) : 0,
       });
 
-      latencyAgg.push({
+      latencyAggregated.push({
         date: new Date(g).toISOString(),
-        ping: lCnt > 0 ? Math.round(pSum / lCnt) : 0,
-        jitter: lCnt > 0 ? Math.round(jSum / lCnt) : 0,
+        ping: latencyCount > 0 ? Math.round(pingSum / latencyCount) : 0,
+        jitter: latencyCount > 0 ? Math.round(jitterSum / latencyCount) : 0,
       });
     }
 
-    return { speedData: speedAgg, latencyData: latencyAgg };
-  }, [maps, startTs, nowTs, groupHours, groupMs, floorToHourStep]);
+    return { speedData: speedAggregated, latencyData: latencyAggregated };
+  }, [maps, startTimestamp, nowTimestamp, groupHours, groupMs, floorToHourStep]);
 
-  const handleRangeChange = React.useCallback((v: string) => {
-    if (v === "7d" || v === "30d" || v === "90d") setTimeRange(v);
+  const handleRangeChange = React.useCallback((value: string) => {
+    if (value === "7d" || value === "30d" || value === "90d") setTimeRange(value);
   }, []);
+
+  const RangeControls = React.useCallback(
+    () => (
+      <>
+        <ToggleGroup
+          type="single"
+          value={timeRange}
+          onValueChange={handleRangeChange}
+          variant="outline"
+          className="hidden *:data-[slot=toggle-group-item]:!px-4 @[767px]/card:flex"
+        >
+          <ToggleGroupItem value="90d">Last 3 months</ToggleGroupItem>
+          <ToggleGroupItem value="30d">Last 30 days</ToggleGroupItem>
+          <ToggleGroupItem value="7d">Last 7 days</ToggleGroupItem>
+        </ToggleGroup>
+        <Select value={timeRange} onValueChange={handleRangeChange}>
+          <SelectTrigger
+            className="flex w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
+            size="sm"
+            aria-label="Select a value"
+          >
+            <SelectValue placeholder="Last 3 months" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="90d" className="rounded-lg">Last 3 months</SelectItem>
+            <SelectItem value="30d" className="rounded-lg">Last 30 days</SelectItem>
+            <SelectItem value="7d" className="rounded-lg">Last 7 days</SelectItem>
+          </SelectContent>
+        </Select>
+      </>
+    ),
+    [timeRange, handleRangeChange]
+  );
+
+  const CommonXAxis = React.useCallback(
+    () => (
+      <XAxis
+        dataKey="date"
+        tickLine={false}
+        tickMargin={8}
+        minTickGap={32}
+        
+        tickFormatter={formatAxisDate}
+      />
+    ),
+    [formatAxisDate]
+  );
+
+  const CommonTooltip = React.useCallback(
+    (defaultIndex?: number) => (
+      <ChartTooltip
+        {...(typeof defaultIndex === "number" ? { defaultIndex } : {})}
+        cursor={false}
+        content={
+          <ChartTooltipContent
+            labelFormatter={formatAxisDate}
+            indicator="dot"
+          />
+        }
+      />
+    ),
+    [formatAxisDate]
+  );
 
   return (
     <>
@@ -183,31 +272,7 @@ export function ChartAreaInteractive() {
             <span className="@[540px]/card:hidden">Selected range</span>
           </CardDescription>
           <CardAction>
-            <ToggleGroup
-              type="single"
-              value={timeRange}
-              onValueChange={handleRangeChange}
-              variant="outline"
-              className="hidden *:data-[slot=toggle-group-item]:!px-4 @[767px]/card:flex"
-            >
-              <ToggleGroupItem value="90d">Last 3 months</ToggleGroupItem>
-              <ToggleGroupItem value="30d">Last 30 days</ToggleGroupItem>
-              <ToggleGroupItem value="7d">Last 7 days</ToggleGroupItem>
-            </ToggleGroup>
-            <Select value={timeRange} onValueChange={handleRangeChange}>
-              <SelectTrigger
-                className="flex w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
-                size="sm"
-                aria-label="Select a value"
-              >
-                <SelectValue placeholder="Last 3 months" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="90d" className="rounded-lg">Last 3 months</SelectItem>
-                <SelectItem value="30d" className="rounded-lg">Last 30 days</SelectItem>
-                <SelectItem value="7d" className="rounded-lg">Last 7 days</SelectItem>
-              </SelectContent>
-            </Select>
+            <RangeControls />
           </CardAction>
         </CardHeader>
         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
@@ -224,26 +289,8 @@ export function ChartAreaInteractive() {
                 </linearGradient>
               </defs>
               <CartesianGrid />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                tickMargin={8}
-                minTickGap={32}
-                tickFormatter={(value) =>
-                  new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                }
-              />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(value) =>
-                      new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                    }
-                    indicator="dot"
-                  />
-                }
-              />
+              <CommonXAxis />
+              {CommonTooltip()}
               <Area dataKey="download" type="monotone" fill="url(#download)" stroke="#6afff3" />
               <Area dataKey="upload" type="monotone" fill="url(#upload)" stroke="#bf71ff" />
             </AreaChart>
@@ -259,31 +306,7 @@ export function ChartAreaInteractive() {
             <span className="@[540px]/card:hidden">Selected range</span>
           </CardDescription>
           <CardAction>
-            <ToggleGroup
-              type="single"
-              value={timeRange}
-              onValueChange={handleRangeChange}
-              variant="outline"
-              className="hidden *:data-[slot=toggle-group-item]:!px-4 @[767px]/card:flex"
-            >
-              <ToggleGroupItem value="90d">Last 3 months</ToggleGroupItem>
-              <ToggleGroupItem value="30d">Last 30 days</ToggleGroupItem>
-              <ToggleGroupItem value="7d">Last 7 days</ToggleGroupItem>
-            </ToggleGroup>
-            <Select value={timeRange} onValueChange={handleRangeChange}>
-              <SelectTrigger
-                className="flex w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
-                size="sm"
-                aria-label="Select a value"
-              >
-                <SelectValue placeholder="Last 3 months" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="90d" className="rounded-lg">Last 3 months</SelectItem>
-                <SelectItem value="30d" className="rounded-lg">Last 30 days</SelectItem>
-                <SelectItem value="7d" className="rounded-lg">Last 7 days</SelectItem>
-              </SelectContent>
-            </Select>
+            <RangeControls />
           </CardAction>
         </CardHeader>
         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
@@ -300,26 +323,8 @@ export function ChartAreaInteractive() {
                 </linearGradient>
               </defs>
               <CartesianGrid />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                tickMargin={8}
-                minTickGap={32}
-                tickFormatter={(value) =>
-                  new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                }
-              />
-              <ChartTooltip
-                defaultIndex={isMobile ? -1 : 10}
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(value) =>
-                      new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                    }
-                    indicator="dot"
-                  />
-                }
-              />
+              <CommonXAxis />
+              {CommonTooltip(isMobile ? -1 : 10)}
               <Area dataKey="ping" type="monotone" fill="url(#ping)" stroke="var(--red-800)" />
               <Area dataKey="jitter" type="monotone" fill="url(#jitter)" stroke="var(--amber-800)" />
             </AreaChart>

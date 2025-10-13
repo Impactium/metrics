@@ -34,7 +34,7 @@ func LogQuery(ctx context.Context, from, to *int64) ([]models.Log, error) {
 	}
 
 	findOpts := optionsFind()
-	// сортировка по убыванию времени, как обычно для логов
+
 	findOpts.SetSort(bson.D{{Key: "timestamp", Value: -1}})
 
 	cur, err := logs.Find(ctx, filter, findOpts)
@@ -56,6 +56,23 @@ func LogQuery(ctx context.Context, from, to *int64) ([]models.Log, error) {
 
 func LogCount(ctx context.Context, from, to *int64) (int64, error) {
 	filter := bson.D{}
+	if from != nil || to != nil {
+		r := bson.D{}
+		if from != nil {
+			r = append(r, bson.E{Key: "$gte", Value: *from})
+		}
+		if to != nil {
+			r = append(r, bson.E{Key: "$lte", Value: *to})
+		}
+		filter = append(filter, bson.E{Key: "timestamp", Value: r})
+	}
+	return logs.CountDocuments(ctx, filter)
+}
+
+func LogCountErrors(ctx context.Context, from, to *int64) (int64, error) {
+	filter := bson.D{
+		{Key: "status", Value: bson.D{{Key: "$gte", Value: 500}}},
+	}
 	if from != nil || to != nil {
 		r := bson.D{}
 		if from != nil {

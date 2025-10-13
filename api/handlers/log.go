@@ -7,10 +7,14 @@ import (
 	"metrics/storage"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+const NINETY_DAYS_MS int64 = 90 * 24 * int64(time.Hour/time.Millisecond)
+const TWENTY_FOUR_HOURS_MS int64 = 24 * int64(time.Hour/time.Millisecond)
 
 func LogCreate(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
@@ -37,30 +41,9 @@ func LogCreate(c *gin.Context) {
 }
 
 func LogList(c *gin.Context) {
-	fromStr := c.Query("from")
-	toStr := c.Query("to")
-
-	var (
-		from *int64
-		to   *int64
-	)
-
-	if fromStr != "" {
-		ms, err := strconv.ParseInt(fromStr, 10, 64)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_from"})
-			return
-		}
-		from = &ms
-	}
-
-	if toStr != "" {
-		ms, err := strconv.ParseInt(toStr, 10, 64)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_to"})
-			return
-		}
-		to = &ms
+	from, to, ok := validateAndNormalizeRange(c)
+	if !ok {
+		return
 	}
 
 	items, err := storage.LogQuery(c.Request.Context(), from, to)
@@ -72,7 +55,63 @@ func LogList(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
+type LogCountResponse struct {
+	All struct {
+		Total int64 `json:"total"`
+		Last  int64 `json:"last"`
+	} `json:"all"`
+	Errors struct {
+		Total int64 `json:"total"`
+		Last  int64 `json:"last"`
+	} `json:"errors"`
+}
+
 func LogCount(c *gin.Context) {
+	from, to, ok := validateAndNormalizeRange(c)
+	if !ok {
+		return
+	}
+
+	nowMs := time.Now().UnixMilli()
+	lastFrom := nowMs - TWENTY_FOUR_HOURS_MS
+	lastTo := nowMs
+
+	totalAll, err := storage.LogCount(c.Request.Context(), from, to)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_failed"})
+		return
+	}
+
+	lastAll, err := storage.LogCount(c.Request.Context(), &lastFrom, &lastTo)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_failed"})
+		return
+	}
+
+	totalErrors, err := storage.LogCountErrors(c.Request.Context(), from, to)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_failed"})
+		return
+	}
+
+	lastErrors, err := storage.LogCountErrors(c.Request.Context(), &lastFrom, &lastTo)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_failed"})
+		return
+	}
+
+	var resp LogCountResponse
+	resp.All.Total = totalAll
+	resp.All.Last = lastAll
+	resp.Errors.Total = totalErrors
+	resp.Errors.Last = lastErrors
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// ---------------- Private helpers ----------------
+
+func validateAndNormalizeRange(c *gin.Context) (*int64, *int64, bool) {
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
 
@@ -85,7 +124,7 @@ func LogCount(c *gin.Context) {
 		ms, err := strconv.ParseInt(fromStr, 10, 64)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_from"})
-			return
+			return nil, nil, false
 		}
 		from = &ms
 	}
@@ -94,16 +133,31 @@ func LogCount(c *gin.Context) {
 		ms, err := strconv.ParseInt(toStr, 10, 64)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_to"})
-			return
+			return nil, nil, false
 		}
 		to = &ms
 	}
 
-	count, err := storage.LogCount(c.Request.Context(), from, to)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_failed"})
-		return
+	nowMs := time.Now().UnixMilli()
+
+	if to == nil {
+		t := nowMs
+		to = &t
+	}
+	if from == nil {
+		f := *to - NINETY_DAYS_MS
+		from = &f
 	}
 
-	c.JSON(http.StatusOK, count)
+	if *to < *from {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_range"})
+		return nil, nil, false
+	}
+
+	if (*to - *from) > NINETY_DAYS_MS {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "range_too_large"})
+		return nil, nil, false
+	}
+
+	return from, to, true
 }

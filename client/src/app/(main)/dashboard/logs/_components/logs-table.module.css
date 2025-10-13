@@ -1,0 +1,51 @@
+.log {
+  font-weight: 400;
+  white-space: nowrap;
+}
+.log *:not(svg, svg *) {
+  color: var(--gray-900);
+  font-size: 12px;
+}
+.log.error {
+  background: var(--red-100);
+}
+.log.error * {
+  color: var(--red-900);
+}
+.log [data-badge] {
+  height: 20px;
+  font-weight: 400;
+  font-family: var(--font-mono);
+  border-radius: 6px;
+  padding: 6px;
+  flex: none;
+  place-content: center;
+  font-size: 12px;
+  line-height: 16px;
+  display: grid;
+}
+.log [data-badge] {
+  color: var(--gray-900);
+}
+.log [data-method] {
+  border: 1px solid var(--gray-400);
+}
+.log.success [data-status] {
+  color: var(--green-900);
+  background: var(--green-200);
+}
+.log.redirect [data-status] {
+  color: var(--blue-900);
+  background: var(--blue-200);
+}
+.log.badRequest [data-status] {
+  color: var(--amber-900);
+  background: var(--amber-200);
+}
+.log.error [data-badge] {
+  color: var(--red-900);
+  background: var(--red-200);
+}
+.log.error [data-method] {
+  border-color: var(--red-200);
+}

@@ -67,8 +67,8 @@ func EnsureIndexes(ctx context.Context) error {
 	// logs
 	_, err = logs.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "req_id", Value: 1}}, Options: options.Index().SetUnique(true)},
-		{Keys: bson.D{{Key: "status", Value: 1}}, Options: options.Index().SetUnique(true)},
-		{Keys: bson.D{{Key: "timestamp", Value: 1}}, Options: options.Index().SetUnique(true)},
+		{Keys: bson.D{{Key: "status", Value: 1}}, Options: options.Index()},
+		{Keys: bson.D{{Key: "timestamp", Value: 1}}, Options: options.Index()},
 	})
 
 	return err
