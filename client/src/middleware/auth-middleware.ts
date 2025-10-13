@@ -1,13 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-
-const Authorization = 'Authorization'
+import { Authorization, SERVER } from '../../constraints';
 
 export async function authMiddleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get(Authorization);
 
   const isLoggedIn = token
-    ? await fetch(`http://${process.env.NODE_ENV === 'production' ? 'api:1337' : 'localhost:1337'}/api/auth/profile`, {
+    ? await fetch(`http://${SERVER}/api/auth/profile`, {
       method: 'GET',
       headers: {
         [Authorization]: token.value

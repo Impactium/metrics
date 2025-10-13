@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Icon } from '@impactium/icons';
 import { cookies } from 'next/headers';
+import { Authorization, SERVER } from '../../../../../../constraints';
 
 export namespace SectionCards {
   export interface Trending {
@@ -15,18 +16,19 @@ export namespace SectionCards {
 
 export async function SectionCards() {
   const cookieStore = await cookies();
-  const authorizationCookie = cookieStore.get('Authorization');
+  const authorizationCookie = cookieStore.get(Authorization);
   if (!authorizationCookie) return null;
 
-  const trending: SectionCards.Trending | null = await fetch('http://localhost:3000/api/speedtest/tranding', {
+  const trending: SectionCards.Trending | null = await fetch(`http://${SERVER}/api/speedtest/tranding`, {
     credentials: 'include',
     headers: { Authorization: authorizationCookie.value },
     cache: 'no-store',
-  }).then((response) => (response.ok ? response.json().then((payload) => payload.data as SectionCards.Trending) : null));
+  }).then((response) => (response.ok ? response.json().then((payload) => payload.data as SectionCards.Trending) : null)).catch();
+
   if (!trending) return null;
 
-  const formatMbps = (value: number) => (Number.isFinite(value) ? String(Math.round(value * 10) / 10) : '0');
-  const formatMilliseconds = (value: number) => (Number.isFinite(value) ? String(Math.round(value * 10) / 10) : '0');
+  const formatMbps = (value: number) => String(Math.round(value * 10) / 10);
+  const formatMilliseconds = (value: number) => String(Math.round(value * 10) / 10);
 
   const calculatePercentChange = (currentValue: number, baselineValue: number) =>
     baselineValue === 0 ? (currentValue === 0 ? 0 : 100) : ((currentValue - baselineValue) / baselineValue) * 100;
@@ -46,7 +48,7 @@ export async function SectionCards() {
 
   const buildThroughputParams = (averageMbps: number, lastMbps: number) => {
     const percent = calculatePercentChange(lastMbps, averageMbps);
-    const improved = percent > 0; // higher throughput is better
+    const improved = percent > 0;
     return {
       titleValue: `${formatMbps(averageMbps * 8 / 1_000_000)}Mbps`,
       signedPercent: formatSignedPercent(percent),
@@ -59,7 +61,7 @@ export async function SectionCards() {
 
   const buildLatencyParams = (averageMs: number, lastMs: number) => {
     const percent = calculatePercentChange(lastMs, averageMs);
-    const improved = percent < 0; // lower latency is better
+    const improved = percent < 0;
     return {
       titleValue: `${formatMilliseconds(averageMs)}ms`,
       signedPercent: formatSignedPercent(percent),
@@ -70,7 +72,6 @@ export async function SectionCards() {
     };
   };
 
-  // backend already provides Mbps for speeds and ms for ping
   const downloadParams = buildThroughputParams(trending.download.avg, trending.download.last);
   const uploadParams = buildThroughputParams(trending.upload.avg, trending.upload.last);
   const pingParams = buildLatencyParams(trending.ping.avg, trending.ping.last);
