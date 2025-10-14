@@ -49,6 +49,46 @@ func (l *Log) Validate() error {
 	return nil
 }
 
+func (l *Log) UnmarshalJSON(b []byte) error {
+	type Alias Log
+	aux := struct {
+		Timestamp any `json:"timestamp"`
+		*Alias
+	}{
+		Alias: (*Alias)(l),
+	}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	switch v := aux.Timestamp.(type) {
+	case nil:
+	case float64:
+		l.Timestamp = fromUnixGuess(int64(v))
+	case string:
+		if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
+			l.Timestamp = t
+		} else if t2, err2 := strconv.ParseInt(v, 10, 64); err2 == nil {
+			l.Timestamp = fromUnixGuess(t2)
+		} else {
+			return errors.New("invalid_timestamp")
+		}
+	default:
+		return errors.New("invalid_timestamp_type")
+	}
+	return nil
+}
+
+func fromUnixGuess(x int64) time.Time {
+	switch {
+	case x > 1_000_000_000_000:
+		return time.Unix(0, x*int64(time.Millisecond)).UTC()
+	case x >= 1_000_000_000:
+		return time.Unix(x, 0).UTC()
+	default:
+		return time.Unix(0, x*int64(time.Millisecond)).UTC()
+	}
+}
+
 func (l *Log) EnsureReqID() {
 	if strings.TrimSpace(l.ReqID) == "" {
 		l.ReqID = uuid.NewString()
