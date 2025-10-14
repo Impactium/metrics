@@ -19,7 +19,7 @@ export default async function () {
     }
   })
   .then((res) => res.ok ? res.json().then(p => p.data) : [])
-  .catch(() => []);
+  .catch(() => []) || [];
 
   const stats = await fetch(`http://${SERVER}/api/logs/stats`, {
     headers: {
@@ -30,7 +30,7 @@ export default async function () {
     }
   })
   .then((res) => res.ok ? res.json().then(p => p.data) : [])
-  .catch(() => []);
+  .catch(() => []) || [];
 
   return (
     <div className="@container/main flex flex-col gap-4 md:gap-6">
