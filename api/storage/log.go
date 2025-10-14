@@ -43,7 +43,7 @@ func LogQuery(ctx context.Context, from, to *int64) ([]models.Log, error) {
 	}
 	defer cur.Close(ctx)
 
-	var out []models.Log
+	var out = make([]models.Log, 0)
 	for cur.Next(ctx) {
 		var s models.Log
 		if err := cur.Decode(&s); err != nil {
