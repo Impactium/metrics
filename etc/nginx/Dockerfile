@@ -1,6 +1,7 @@
 FROM nginx:alpine
 
 RUN apk add --no-cache \
+      nginx-mod-http-ndk \
       nginx-mod-http-lua \
       lua-resty-http \
       lua-resty-core \
