@@ -22,11 +22,13 @@ func LogCreate(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "empty_body"})
 		return
 	}
+
 	batch, err := models.LogsFromJSON(body)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
 	if err := storage.LogInsert(c.Request.Context(), batch); err != nil {
 		var bwe mongo.BulkWriteException
 		var we mongo.WriteException
@@ -37,6 +39,7 @@ func LogCreate(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_insert_failed"})
 		return
 	}
+
 	c.JSON(http.StatusCreated, true)
 }
 
