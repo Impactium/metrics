@@ -1,13 +1,7 @@
-FROM nginx:alpine
+FROM openresty/openresty:1.25.3.2-0-alpine
 
-RUN apk add --no-cache \
-      nginx-mod-http-ndk \
-      nginx-mod-http-lua \
-      lua-resty-http \
-      lua-resty-core \
-      lua-resty-lrucache \
-      lua-cjson \
-      ca-certificates && update-ca-certificates
+RUN apk add --no-cache perl curl git unzip ca-certificates && update-ca-certificates \
+ && opm get ledgetech/lua-resty-http
 
 RUN mkdir -p /etc/nginx/lua
 
@@ -17,4 +11,4 @@ COPY etc/nginx/conf.d/metrics.inc      /etc/nginx/conf.d/metrics.inc
 COPY etc/nginx/metrics_logger.lua      /etc/nginx/lua/metrics_logger.lua
 COPY etc/nginx/files.conf etc/nginx/proxy.conf  /etc/nginx/
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["openresty", "-g", "daemon off;"]
