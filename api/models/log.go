@@ -4,21 +4,27 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type Log struct {
-	ReqID     string          `json:"req_id" gorm:"primaryKey;size:64"`
-	Timestamp int64           `json:"timestamp" validate:"required"`
-	Status    int             `json:"status" validate:"required"`
-	Took      int             `json:"took"`
-	Path      string          `json:"path" validate:"required"`
-	Method    string          `json:"method" validate:"required"`
-	Data      json.RawMessage `json:"data" gorm:"type:jsonb"`
+	ReqID     string                 `json:"req_id" bson:"req_id"`
+	Timestamp int64                  `json:"timestamp" bson:"timestamp" validate:"required"`
+	Status    int                    `json:"status" bson:"status" validate:"required"`
+	Took      int                    `json:"took" bson:"took"`
+	Path      string                 `json:"path" bson:"path" validate:"required"`
+	Method    string                 `json:"method" bson:"method" validate:"required"`
+	Data      map[string]interface{} `json:"data,omitempty" bson:"data,omitempty"`
 }
 
-func (Log) TableName() string { return "logs" }
+func (l *Log) EnsureReqID() {
+	if strings.TrimSpace(l.ReqID) == "" {
+		l.ReqID = uuid.NewString()
+	}
+}
 
 func (l *Log) Validate() error {
 	if l.Timestamp == 0 {
@@ -43,6 +49,7 @@ func LogsFromJSON(b []byte) ([]Log, error) {
 			return nil, errors.New("empty_array")
 		}
 		for i := range batch {
+			batch[i].EnsureReqID()
 			if err := batch[i].Validate(); err != nil {
 				return nil, err
 			}

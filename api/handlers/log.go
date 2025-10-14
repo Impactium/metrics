@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"metrics/models"
 	"metrics/storage"
@@ -31,7 +30,6 @@ func LogCreate(c *gin.Context) {
 	}
 
 	if err := storage.LogInsert(c.Request.Context(), batch); err != nil {
-		fmt.Println(err)
 		var bwe mongo.BulkWriteException
 		var we mongo.WriteException
 		if errors.As(err, &bwe) || errors.As(err, &we) {
