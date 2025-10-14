@@ -61,6 +61,7 @@ func main() {
 	// logs
 	api.POST("/logs", handlers.LogCreate)
 	api.GET("/logs", middlewares.AuthRequired(), handlers.LogList)
+	api.GET("/logs/stats", middlewares.AuthRequired(), handlers.LogStats)
 	api.GET("/logs/count", middlewares.AuthRequired(), handlers.LogCount)
 
 	srv := &http.Server{

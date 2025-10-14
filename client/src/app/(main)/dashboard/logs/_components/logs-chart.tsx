@@ -11,21 +11,20 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Log } from "@/types/models/log";
 
 export namespace LogsChart {
-  export interface Props {
-    logs: Log.Type[]
-  }
-
   export type TimeRange = "7d" | "30d" | "90d";
 
   export type StatusKey = "success" | "redirect" | "badRequest" | "error";
 
-  export type StatusRecord<T> = Record<StatusKey, T>;
+  export interface Point extends Record<StatusKey, number> {
+    date: number; // ms
+  }
 
-  export interface ChartPoint extends StatusRecord<number> {
-    date: number;
+  export type Stats = Point[];
+
+  export interface Props {
+    stats: Stats;
   }
 }
 
@@ -54,23 +53,11 @@ const TIME_RANGE_TO_BUCKET_MS: Record<LogsChart.TimeRange, number> = {
   "90d": 12 * MS_HOUR,
 };
 
-function createStatusRecordWithFactory<T>(factory: () => T): LogsChart.StatusRecord<T> {
-  return {
-    success: factory(),
-    redirect: factory(),
-    badRequest: factory(),
-    error: factory(),
-  };
+function zeroPoint(date: number): LogsChart.Point {
+  return { date, success: 0, redirect: 0, badRequest: 0, error: 0 };
 }
 
-function getStatusKeyByHttpCode(statusCode: number): LogsChart.StatusKey {
-  if (statusCode >= 200 && statusCode < 300) return "success";
-  if (statusCode >= 300 && statusCode < 400) return "redirect";
-  if (statusCode >= 400 && statusCode < 500) return "badRequest";
-  return "error";
-}
-
-export function LogsChart({ logs }: LogsChart.Props) {
+export function LogsChart({ stats }: LogsChart.Props) {
   const isMobile = useIsMobile();
   const [timeRange, setTimeRange] = React.useState<LogsChart.TimeRange>("90d");
 
@@ -88,50 +75,42 @@ export function LogsChart({ logs }: LogsChart.Props) {
     []
   );
 
-  const chartData = React.useMemo<LogsChart.ChartPoint[]>(() => {
+  // Агрегация по новому типу: объединение записей в бакеты 7/1ч, 30/4ч, 90/12ч
+  const chartData = React.useMemo<LogsChart.Stats>(() => {
     const now = Date.now();
     const rangeDuration = TIME_RANGE_TO_DURATION_MS[timeRange];
     const bucketSize = TIME_RANGE_TO_BUCKET_MS[timeRange];
     const rangeStart = now - rangeDuration;
 
-    const filteredLogs = logs.filter((log) => typeof log.timestamp === "number" && log.timestamp >= rangeStart && log.timestamp <= now);
+    // фильтрация по диапазону
+    const filtered = (stats ?? []).filter(
+      (x): x is LogsChart.Point =>
+        !!x && typeof x.date === "number" && x.date >= rangeStart && x.date <= now
+    );
 
-    const buckets = new Map<number, LogsChart.StatusRecord<number>>();
-
-    for (const log of filteredLogs) {
-      const bucketTimestamp = Math.floor(log.timestamp / bucketSize) * bucketSize;
-      let record = buckets.get(bucketTimestamp);
-      if (!record) {
-        record = createStatusRecordWithFactory<number>(() => 0);
-        buckets.set(bucketTimestamp, record);
-      }
-      const statusKey = getStatusKeyByHttpCode(log.status);
-      record[statusKey] = record[statusKey] + 1;
+    // агрегация по бакетам
+    const buckets = new Map<number, LogsChart.Point>();
+    for (const p of filtered) {
+      const t = Math.floor(p.date / bucketSize) * bucketSize;
+      const acc = buckets.get(t) ?? zeroPoint(t);
+      acc.success += p.success | 0;
+      acc.redirect += p.redirect | 0;
+      acc.badRequest += p.badRequest | 0;
+      acc.error += p.error | 0;
+      buckets.set(t, acc);
     }
 
-    // Ensure continuity: create empty buckets across the range so the area chart is continuous
+    // заполнение пустых бакетов
     const firstBucket = Math.floor(rangeStart / bucketSize) * bucketSize;
     for (let t = firstBucket; t <= now; t += bucketSize) {
-      if (!buckets.has(t)) {
-        buckets.set(t, createStatusRecordWithFactory<number>(() => 0));
-      }
+      if (!buckets.has(t)) buckets.set(t, zeroPoint(t));
     }
 
-    const sortedTimestamps = Array.from(buckets.keys()).sort((a, b) => a - b);
-
-    const points: LogsChart.ChartPoint[] = sortedTimestamps.map((t) => {
-      const counts = buckets.get(t)!;
-      return {
-        date: t,
-        success: counts.success,
-        redirect: counts.redirect,
-        badRequest: counts.badRequest,
-        error: counts.error,
-      };
-    });
-
-    return points;
-  }, [logs, timeRange]);
+    // сортировка и вывод
+    return Array.from(buckets.keys())
+      .sort((a, b) => a - b)
+      .map((t) => buckets.get(t)!);
+  }, [stats, timeRange]);
 
   const RangeControls = React.useCallback(
     () => (

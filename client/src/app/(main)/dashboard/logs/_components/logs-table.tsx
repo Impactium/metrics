@@ -52,7 +52,7 @@ export function LogsTable({ logs }: LogsTable.Props) {
   }
 
   return (
-    <Card className='@container/card gap-0! p-1'>
+    <Card className='@container/card gap-0! p-1 max-h-128 overflow-x-hidden overflow-y-auto'>
       {logs.map((log) => {
         const { domain, path } = parsePath(log.path)
         const status = getStatus(log.status);
@@ -60,8 +60,8 @@ export function LogsTable({ logs }: LogsTable.Props) {
         const date = new Date(log.timestamp);
 
         return (
-          <div key={log.req_id} className={cn(`flex items-center h-8 rounded-md text-xs`, s.log, s[status])}>
-            <div className='flex items-center gap-2 px-1.5 min-w-[96px]'>
+          <div key={log.req_id} className={cn(`flex shrink-0 items-center h-8 rounded-md text-xs`, s.log, s[status])}>
+            <div className='flex items-center gap-2 px-1.5 min-w-[128px]'>
               <span data-badge data-status>{log.status}</span>
               <span>{date.toLocaleTimeString() + ':' + date.getMilliseconds()}</span>
             </div>

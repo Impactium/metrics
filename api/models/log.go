@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,7 +13,7 @@ import (
 
 type Log struct {
 	ReqID     string                 `json:"req_id" bson:"req_id"`
-	Timestamp int64                  `json:"timestamp" bson:"timestamp" validate:"required"`
+	Timestamp time.Time              `json:"timestamp" bson:"timestamp" validate:"required"`
 	Status    int                    `json:"status" bson:"status" validate:"required"`
 	Took      int                    `json:"took" bson:"took"`
 	Path      string                 `json:"path" bson:"path" validate:"required"`
@@ -20,14 +21,20 @@ type Log struct {
 	Data      map[string]interface{} `json:"data,omitempty" bson:"data,omitempty"`
 }
 
-func (l *Log) EnsureReqID() {
-	if strings.TrimSpace(l.ReqID) == "" {
-		l.ReqID = uuid.NewString()
-	}
+type StatusRecord struct {
+	Success    int64 `json:"success" bson:"success"`
+	Redirect   int64 `json:"redirect" bson:"redirect"`
+	BadRequest int64 `json:"badRequest" bson:"badRequest"`
+	Error      int64 `json:"error" bson:"error"`
+}
+
+type LogChartPoint struct {
+	Date int64 `json:"date" bson:"date"`
+	StatusRecord
 }
 
 func (l *Log) Validate() error {
-	if l.Timestamp == 0 {
+	if l.Timestamp.IsZero() {
 		return errors.New("timestamp_required")
 	}
 	if l.Status == 0 {
@@ -40,6 +47,12 @@ func (l *Log) Validate() error {
 		return errors.New("method_required")
 	}
 	return nil
+}
+
+func (l *Log) EnsureReqID() {
+	if strings.TrimSpace(l.ReqID) == "" {
+		l.ReqID = uuid.NewString()
+	}
 }
 
 func LogsFromJSON(b []byte) ([]Log, error) {

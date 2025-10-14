@@ -13,9 +13,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-const NINETY_DAYS_MS int64 = 90 * 24 * int64(time.Hour/time.Millisecond)
-const TWENTY_FOUR_HOURS_MS int64 = 24 * int64(time.Hour/time.Millisecond)
-
 func LogCreate(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil || len(body) == 0 {
@@ -58,6 +55,34 @@ func LogList(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
+func LogStats(c *gin.Context) {
+	fromT, toT, ok := validateAndNormalizeRange(c)
+	if !ok {
+		return
+	}
+
+	last, err := storage.LogLatest(c.Request.Context(), fromT, toT)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_last_failed"})
+		return
+	}
+	if last == nil {
+		c.JSON(http.StatusOK, []models.LogChartPoint{})
+		return
+	}
+
+	effectiveTo := *last
+
+	points, err := storage.LogStats(c.Request.Context(), *fromT, effectiveTo)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_aggregate_failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, points)
+}
+
 type LogCountResponse struct {
 	All struct {
 		Total int64 `json:"total"`
@@ -75,9 +100,9 @@ func LogCount(c *gin.Context) {
 		return
 	}
 
-	nowMs := time.Now().UnixMilli()
-	lastFrom := nowMs - TWENTY_FOUR_HOURS_MS
-	lastTo := nowMs
+	now := time.Now().UTC()
+	lastFrom := now.Add(-24 * time.Hour)
+	lastTo := now
 
 	totalAll, err := storage.LogCount(c.Request.Context(), from, to)
 	if err != nil {
@@ -114,13 +139,15 @@ func LogCount(c *gin.Context) {
 
 // ---------------- Private helpers ----------------
 
-func validateAndNormalizeRange(c *gin.Context) (*int64, *int64, bool) {
+func validateAndNormalizeRange(c *gin.Context) (*time.Time, *time.Time, bool) {
+	const maxRange = 90 * 24 * time.Hour
+
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
 
 	var (
-		from *int64
-		to   *int64
+		from *time.Time
+		to   *time.Time
 	)
 
 	if fromStr != "" {
@@ -129,7 +156,8 @@ func validateAndNormalizeRange(c *gin.Context) (*int64, *int64, bool) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_from"})
 			return nil, nil, false
 		}
-		from = &ms
+		ft := time.UnixMilli(ms).UTC()
+		from = &ft
 	}
 
 	if toStr != "" {
@@ -138,26 +166,27 @@ func validateAndNormalizeRange(c *gin.Context) (*int64, *int64, bool) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_to"})
 			return nil, nil, false
 		}
-		to = &ms
+		tt := time.UnixMilli(ms).UTC()
+		to = &tt
 	}
 
-	nowMs := time.Now().UnixMilli()
+	now := time.Now().UTC()
 
 	if to == nil {
-		t := nowMs
+		t := now
 		to = &t
 	}
 	if from == nil {
-		f := *to - NINETY_DAYS_MS
+		f := to.Add(-maxRange)
 		from = &f
 	}
 
-	if *to < *from {
+	if to.Before(*from) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_range"})
 		return nil, nil, false
 	}
 
-	if (*to - *from) > NINETY_DAYS_MS {
+	if to.Sub(*from) > maxRange {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "range_too_large"})
 		return nil, nil, false
 	}
