@@ -44,7 +44,7 @@ func main() {
 
 	api := r.Group("/api")
 
-	api.GET("/ws/", gin.WrapH(broadcast.Broadcaster))
+	api.GET("/ws/", middlewares.AuthRequired(), gin.WrapH(broadcast.Broadcaster))
 
 	api.Use(middlewares.RequestMiddleware())
 	api.Use(middlewares.ResponseWrapper())
