@@ -14,7 +14,6 @@ require github.com/golang-jwt/jwt/v5 v5.3.0
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
-	github.com/doquangtan/socketio/v4 v4.1.6
 	github.com/fasthttp/websocket v1.5.3 // indirect
 	github.com/gofiber/fiber/v2 v2.52.9 // indirect
 	github.com/gofiber/websocket/v2 v2.2.1 // indirect
