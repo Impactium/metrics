@@ -7,6 +7,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func LogInsert(ctx context.Context, payload []models.Log) error {
@@ -22,7 +23,7 @@ func LogInsert(ctx context.Context, payload []models.Log) error {
 	return err
 }
 
-func LogQuery(ctx context.Context, from, to *time.Time) ([]models.Log, error) {
+func LogQuery(ctx context.Context, from, to *time.Time, limit, skip int64) ([]models.Log, error) {
 	filter := bson.D{}
 	if from != nil || to != nil {
 		r := bson.D{}
@@ -35,8 +36,13 @@ func LogQuery(ctx context.Context, from, to *time.Time) ([]models.Log, error) {
 		filter = append(filter, bson.E{Key: "timestamp", Value: r})
 	}
 
-	findOpts := optionsFind()
-	findOpts.SetSort(bson.D{{Key: "timestamp", Value: -1}})
+	findOpts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
+	if skip > 0 {
+		findOpts.SetSkip(skip)
+	}
+	if limit >= 0 { // -1 = без лимита
+		findOpts.SetLimit(limit)
+	}
 
 	cur, err := logs.Find(ctx, filter, findOpts)
 	if err != nil {
@@ -55,7 +61,7 @@ func LogQuery(ctx context.Context, from, to *time.Time) ([]models.Log, error) {
 	return out, cur.Err()
 }
 
-func LogLatest(ctx context.Context, from, to *time.Time) (*time.Time, error) {
+func LogLatest(ctx context.Context, from, to *time.Time, limit, skip int64) (*time.Time, error) {
 	match := bson.D{}
 	if from != nil || to != nil {
 		ts := bson.D{}
@@ -68,13 +74,17 @@ func LogLatest(ctx context.Context, from, to *time.Time) (*time.Time, error) {
 		match = append(match, bson.E{Key: "timestamp", Value: ts})
 	}
 
-	opts := optionsFind().SetSort(bson.D{{Key: "timestamp", Value: -1}}).SetLimit(1)
-	cur, err := logs.Find(ctx, match, opts)
+	opts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}}).SetLimit(1)
+	if skip > 0 {
+		opts.SetSkip(skip)
+	}
 
+	cur, err := logs.Find(ctx, match, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer cur.Close(ctx)
+
 	if !cur.Next(ctx) {
 		return nil, cur.Err()
 	}
@@ -202,7 +212,7 @@ func LogStats(ctx context.Context, from, to time.Time) ([]models.LogChartPoint, 
 	return results, nil
 }
 
-func LogCount(ctx context.Context, from, to *time.Time) (int64, error) {
+func LogCount(ctx context.Context, from, to *time.Time, limit, skip int64) (int64, error) {
 	filter := bson.D{}
 	if from != nil || to != nil {
 		r := bson.D{}
@@ -214,7 +224,16 @@ func LogCount(ctx context.Context, from, to *time.Time) (int64, error) {
 		}
 		filter = append(filter, bson.E{Key: "timestamp", Value: r})
 	}
-	return logs.CountDocuments(ctx, filter)
+
+	countOpts := options.Count()
+	if skip > 0 {
+		countOpts.SetSkip(skip)
+	}
+	if limit >= 0 {
+		countOpts.SetLimit(limit)
+	}
+
+	return logs.CountDocuments(ctx, filter, countOpts)
 }
 
 func LogCountErrors(ctx context.Context, from, to *time.Time) (int64, error) {

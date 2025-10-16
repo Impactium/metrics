@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Icon } from '@impactium/icons';
 import { cookies } from 'next/headers';
-import { Authorization, SERVER } from '../../../../../../constraints';
+import { Authorization, SERVER_SSR } from '../../../../../../constraints';
 import { formatBytesToMbps, formatPrecision } from './utils';
 
 export namespace SectionCards {
@@ -20,7 +20,7 @@ export async function SectionCards() {
   const authorizationCookie = cookieStore.get(Authorization);
   if (!authorizationCookie) return null;
 
-  const trending: SectionCards.Trending | null = await fetch(`http://${SERVER}/api/speedtest/tranding`, {
+  const trending: SectionCards.Trending | null = await fetch(`http://${SERVER_SSR}/api/speedtest/tranding`, {
     credentials: 'include',
     headers: { Authorization: authorizationCookie.value },
     cache: 'no-store',

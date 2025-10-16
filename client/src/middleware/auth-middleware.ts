@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { Authorization, SERVER } from '../../constraints';
+import { Authorization, SERVER_SSR } from '../../constraints';
 
 export async function authMiddleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get(Authorization);
 
   const isLoggedIn = token
-    ? await fetch(`http://${SERVER}/api/auth/profile`, {
+    ? await fetch(`http://${SERVER_SSR}/api/auth/profile`, {
       method: 'GET',
       headers: {
         [Authorization]: token.value

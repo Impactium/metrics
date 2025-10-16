@@ -38,14 +38,16 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-	r.Use(middlewares.RequestMiddleware())
-	r.Use(middlewares.ResponseWrapper())
 
-	broadcast.Broadcaster = broadcast.NewBroadcast()
+	broadcast.Setup()
+	defer broadcast.Broadcaster.Close()
 
 	api := r.Group("/api")
 
-	api.GET("/ws", broadcast.Handler())
+	api.GET("/ws/", gin.WrapH(broadcast.Broadcaster))
+
+	api.Use(middlewares.RequestMiddleware())
+	api.Use(middlewares.ResponseWrapper())
 
 	// auth
 	auth := api.Group("/auth")

@@ -11,25 +11,19 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Log } from "@/types/models/log";
 
 export namespace LogsChart {
   export type TimeRange = "7d" | "30d" | "90d";
 
-  export type StatusKey = "success" | "redirect" | "badRequest" | "error";
-
-  export interface Point extends Record<StatusKey, number> {
-    date: number; // ms
-  }
-
-  export type Stats = Point[];
-
   export interface Props {
-    stats: Stats;
+    stats: Log.Statistics.Type;
   }
 }
 
 const requestsChartConfig = {
   label: { label: "Requests" },
+  provisional: { label: "Provisional", color: "var(--gray-900)" },
   success: { label: "Success", color: "var(--green-900)" },
   redirect: { label: "Redirect", color: "var(--blue-900)" },
   badRequest: { label: "Bad Request", color: "var(--amber-900)" },
@@ -53,8 +47,8 @@ const TIME_RANGE_TO_BUCKET_MS: Record<LogsChart.TimeRange, number> = {
   "90d": 12 * MS_HOUR,
 };
 
-function zeroPoint(date: number): LogsChart.Point {
-  return { date, success: 0, redirect: 0, badRequest: 0, error: 0 };
+function zeroPoint(date: number): Log.Statistics.Point {
+  return { date, provisional: 0, success: 0, redirect: 0, badRequest: 0, error: 0 };
 }
 
 export function LogsChart({ stats }: LogsChart.Props) {
@@ -75,24 +69,19 @@ export function LogsChart({ stats }: LogsChart.Props) {
     []
   );
 
-  // Агрегация по новому типу: объединение записей в бакеты 7/1ч, 30/4ч, 90/12ч
-  const chartData = React.useMemo<LogsChart.Stats>(() => {
+  const chartData = React.useMemo<Log.Statistics.Type>(() => {
     const now = Date.now();
     const rangeDuration = TIME_RANGE_TO_DURATION_MS[timeRange];
     const bucketSize = TIME_RANGE_TO_BUCKET_MS[timeRange];
     const rangeStart = now - rangeDuration;
 
-    // фильтрация по диапазону
-    const filtered = (stats ?? []).filter(
-      (x): x is LogsChart.Point =>
-        !!x && typeof x.date === "number" && x.date >= rangeStart && x.date <= now
-    );
+    const filtered = stats.filter(x => !!x && typeof x.date === "number" && x.date >= rangeStart && x.date <= now);
 
-    // агрегация по бакетам
-    const buckets = new Map<number, LogsChart.Point>();
+    const buckets = new Map<number, Log.Statistics.Point>();
     for (const p of filtered) {
       const t = Math.floor(p.date / bucketSize) * bucketSize;
       const acc = buckets.get(t) ?? zeroPoint(t);
+      acc.provisional += p.provisional | 0;
       acc.success += p.success | 0;
       acc.redirect += p.redirect | 0;
       acc.badRequest += p.badRequest | 0;
@@ -100,13 +89,11 @@ export function LogsChart({ stats }: LogsChart.Props) {
       buckets.set(t, acc);
     }
 
-    // заполнение пустых бакетов
     const firstBucket = Math.floor(rangeStart / bucketSize) * bucketSize;
     for (let t = firstBucket; t <= now; t += bucketSize) {
       if (!buckets.has(t)) buckets.set(t, zeroPoint(t));
     }
 
-    // сортировка и вывод
     return Array.from(buckets.keys())
       .sort((a, b) => a - b)
       .map((t) => buckets.get(t)!);
@@ -190,6 +177,10 @@ export function LogsChart({ stats }: LogsChart.Props) {
         <ChartContainer config={requestsChartConfig} className="aspect-auto h-[250px] w-full">
           <AreaChart data={chartData}>
             <defs>
+              <linearGradient id="provisional" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor='var(--gray-400)' stopOpacity={1.0} />
+                <stop offset="95%" stopColor='var(--gray-100)' stopOpacity={0.1} />
+              </linearGradient>
               <linearGradient id="success" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor='var(--green-400)' stopOpacity={1.0} />
                 <stop offset="95%" stopColor='var(--green-100)' stopOpacity={0.1} />
@@ -210,6 +201,7 @@ export function LogsChart({ stats }: LogsChart.Props) {
             <CartesianGrid />
             <CommonXAxis />
             {CommonTooltip()}
+            <Area dataKey="provisional" type="monotone" fill="url(#provisional)" stroke='var(--gray-900)' />
             <Area dataKey="success" type="monotone" fill="url(#success)" stroke='var(--green-900)' />
             <Area dataKey="redirect" type="monotone" fill="url(#redirect)" stroke='var(--blue-900)' />
             <Area dataKey="badRequest" type="monotone" fill="url(#badRequest)" stroke='var(--amber-900)' />

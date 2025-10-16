@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"io"
+	"metrics/broadcast"
 	"metrics/models"
 	"metrics/storage"
 	"net/http"
@@ -37,16 +38,20 @@ func LogCreate(c *gin.Context) {
 		return
 	}
 
+	for i := range batch {
+		broadcast.Log(batch[i])
+	}
+
 	c.JSON(http.StatusCreated, true)
 }
 
 func LogList(c *gin.Context) {
-	from, to, ok := validateAndNormalizeRange(c)
+	from, to, limit, skip, ok := validateAndNormalizeRange(c)
 	if !ok {
 		return
 	}
 
-	items, err := storage.LogQuery(c.Request.Context(), from, to)
+	items, err := storage.LogQuery(c.Request.Context(), from, to, limit, skip)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_query_failed"})
 		return
@@ -56,12 +61,12 @@ func LogList(c *gin.Context) {
 }
 
 func LogStats(c *gin.Context) {
-	fromT, toT, ok := validateAndNormalizeRange(c)
+	fromT, toT, limit, skip, ok := validateAndNormalizeRange(c)
 	if !ok {
 		return
 	}
 
-	last, err := storage.LogLatest(c.Request.Context(), fromT, toT)
+	last, err := storage.LogLatest(c.Request.Context(), fromT, toT, limit, skip)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_last_failed"})
 		return
@@ -95,7 +100,7 @@ type LogCountResponse struct {
 }
 
 func LogCount(c *gin.Context) {
-	from, to, ok := validateAndNormalizeRange(c)
+	from, to, limit, skip, ok := validateAndNormalizeRange(c)
 	if !ok {
 		return
 	}
@@ -104,13 +109,13 @@ func LogCount(c *gin.Context) {
 	lastFrom := now.Add(-24 * time.Hour)
 	lastTo := now
 
-	totalAll, err := storage.LogCount(c.Request.Context(), from, to)
+	totalAll, err := storage.LogCount(c.Request.Context(), from, to, limit, skip)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_failed"})
 		return
 	}
 
-	lastAll, err := storage.LogCount(c.Request.Context(), &lastFrom, &lastTo)
+	lastAll, err := storage.LogCount(c.Request.Context(), &lastFrom, &lastTo, limit, skip)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db_count_failed"})
 		return
@@ -139,39 +144,76 @@ func LogCount(c *gin.Context) {
 
 // ---------------- Private helpers ----------------
 
-func validateAndNormalizeRange(c *gin.Context) (*time.Time, *time.Time, bool) {
-	const maxRange = 90 * 24 * time.Hour
+const ZERO = int64(iota)
+const MAX_RANGE = 90 * 24 * time.Hour
+const MAX_LIMIT = 1 << 10
 
+func validateAndNormalizeRange(c *gin.Context) (*time.Time, *time.Time, int64, int64, bool) {
+	const (
+		maxRange = MAX_RANGE
+		limitMax = MAX_LIMIT
+		limitMin = ZERO
+		skipMin  = ZERO
+	)
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
+	limitStr := c.Query("limit")
+	skipStr := c.Query("skip")
 
 	var (
-		from *time.Time
-		to   *time.Time
+		from  *time.Time
+		to    *time.Time
+		limit = int64(-1) // default -1
+		skip  = ZERO      // default 0
 	)
 
 	if fromStr != "" {
 		ms, err := strconv.ParseInt(fromStr, 10, 64)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_from"})
-			return nil, nil, false
+			return nil, nil, ZERO, ZERO, false
 		}
 		ft := time.UnixMilli(ms).UTC()
 		from = &ft
 	}
-
 	if toStr != "" {
 		ms, err := strconv.ParseInt(toStr, 10, 64)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_to"})
-			return nil, nil, false
+			return nil, nil, ZERO, ZERO, false
 		}
 		tt := time.UnixMilli(ms).UTC()
 		to = &tt
 	}
 
-	now := time.Now().UTC()
+	if limitStr != "" {
+		v, err := strconv.ParseInt(limitStr, 10, 64)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_limit"})
+			return nil, nil, ZERO, ZERO, false
+		}
+		if v < limitMin {
+			v = limitMin
+		}
+		if v > limitMax {
+			v = limitMax
+		}
+		limit = v
+	}
 
+	if skipStr != "" {
+		v, err := strconv.ParseInt(skipStr, 10, 64)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_skip"})
+			return nil, nil, ZERO, ZERO, false
+		}
+		if v < skipMin {
+			v = skipMin
+		}
+		skip = v
+	}
+
+	now := time.Now().UTC()
 	if to == nil {
 		t := now
 		to = &t
@@ -183,13 +225,12 @@ func validateAndNormalizeRange(c *gin.Context) (*time.Time, *time.Time, bool) {
 
 	if to.Before(*from) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_range"})
-		return nil, nil, false
+		return nil, nil, ZERO, ZERO, false
 	}
-
 	if to.Sub(*from) > maxRange {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "range_too_large"})
-		return nil, nil, false
+		return nil, nil, ZERO, ZERO, false
 	}
 
-	return from, to, true
+	return from, to, limit, skip, true
 }

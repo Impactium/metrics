@@ -1,16 +1,15 @@
-import { Log } from "@/types/models/log";
-import { LogsTable } from "./_components/logs-table";
-import { LogsCards } from "./_components/logs-cards";
-import { LogsChart } from "./_components/logs-chart";
-import { Authorization, SERVER } from "../../../../../constraints";
+'server-only'
+import { Authorization, SERVER_SSR } from "../../../../../constraints";
 import { cookies } from "next/headers";
+import { LogsPageClient } from "./_components/logs-page-client";
+import { LogsCards } from "./_components/logs-cards";
 
 export default async function () {
   const cookieStore = await cookies();
   const authorization = cookieStore.get(Authorization);
   if (!authorization) return null;
 
-  const logs = await fetch(`http://${SERVER}/api/logs`, {
+  const logs = await fetch(`http://${SERVER_SSR}/api/logs?limit=1024`, {
     headers: {
       [Authorization]: authorization.value
     },
@@ -21,7 +20,7 @@ export default async function () {
   .then((res) => res.ok ? res.json().then(p => p.data) : [])
   .catch(() => []) || [];
 
-  const stats = await fetch(`http://${SERVER}/api/logs/stats`, {
+  const stats = await fetch(`http://${SERVER_SSR}/api/logs/stats`, {
     headers: {
       [Authorization]: authorization.value
     },
@@ -32,11 +31,16 @@ export default async function () {
   .then((res) => res.ok ? res.json().then(p => p.data) : [])
   .catch(() => []) || [];
 
-  return (
-    <div className="@container/main flex flex-col gap-4 md:gap-6">
-      <LogsCards />
-      <LogsChart stats={stats} />
-      <LogsTable logs={logs} />
-    </div>
-  );
+  const tranding = await fetch(`http://${SERVER_SSR}/api/logs/count`, {
+    headers: {
+      [Authorization]: authorization.value
+    },
+    next: {
+      tags: ['logs_count']
+    }
+  })
+  .then((res) => res.ok ? res.json().then(p => p.data) : null)
+  .catch(() => null);
+
+  return <LogsPageClient initialLogs={logs} initialStats={stats} initialTranding={tranding} />;
 }
