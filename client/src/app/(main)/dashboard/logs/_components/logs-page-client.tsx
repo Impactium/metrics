@@ -23,52 +23,88 @@ export function LogsPageClient({ initialLogs, initialStats, initialTranding }: L
   const socket = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const ws = new WebSocket(SERVER_CSR + '/api/ws');
+    let alive = true;
+    let attempt = 0;
+    const MAX_BACKOFF = 10_000;
 
-    socket.current = ws;
+    const connect = () => {
+      const ws = new WebSocket(`${SERVER_CSR}/api/ws`);
+      socket.current = ws;
 
-    
-      try {
-        ws.onmessage = m => {
-          const log: Log.Type = JSON.parse(m.data);
-          setStats(stats => {
-            let key: Log.Statistics.Key = 'provisional';
-            switch (true) {
-              case between(log.status, 200, 299):
-                key = 'success';
-                break;
-              case between(log.status, 300, 399):
-                key = 'redirect';
-                break;
-              case between(log.status, 400, 499):
-                key = 'badRequest';
-                break;
-              case between(log.status, 500, 599):
-                key = 'error';
-                break;
-            }
+      ws.onopen = () => {
+        attempt = 0;
+      };
 
-            stats[stats.length - 1][key] += stats[stats.length - 1][key];
+      ws.onmessage = (m) => {
+        let log: Log.Type;
+        try {
+          log = JSON.parse(m.data);
+        } catch {
+          return;
+        }
 
-            return stats;
-          });
+        const key: Log.Statistics.Key =
+          between(log.status, 200, 299)
+            ? 'success'
+            : between(log.status, 300, 399)
+              ? 'redirect'
+              : between(log.status, 400, 499)
+                ? 'badRequest'
+                : between(log.status, 500, 599)
+                  ? 'error'
+                  : 'provisional';
 
-          setLogs(logs => [log, ...logs].slice(0, 256).sort((a, b) => a.timestamp - b.timestamp));
-          setTranding(tranding => {
-            if (between(log.status, 500, 599)) {
-              tranding.errors.total++;
-              tranding.errors.last++;
-            }
-            tranding.all.total++;
-            tranding.all.last++;
+        setStats((prev) => {
+          if (!prev.length) return prev;
+          const next = [...prev];
+          const last = { ...next[next.length - 1] };
+          last[key] = (last[key] ?? 0) + 1;
+          next[next.length - 1] = last;
+          return next;
+        });
 
-            return tranding;
-          })
-        };
-      } catch (_) { }
+        setLogs((prev) => {
+          const next = [...prev, log]
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .slice(-256);
+          return next;
+        });
+
+        setTranding((prev) => {
+          const is5xx = log.status >= 500 && log.status <= 599;
+          return {
+            ...prev,
+            errors: {
+              ...prev.errors,
+              total: prev.errors.total + (is5xx ? 1 : 0),
+              last: prev.errors.last + (is5xx ? 1 : 0),
+            },
+            all: {
+              ...prev.all,
+              total: prev.all.total + 1,
+              last: prev.all.last + 1,
+            },
+          };
+        });
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+
+      ws.onclose = () => {
+        socket.current = null;
+        if (!alive) return;
+        const delay = Math.min(MAX_BACKOFF, 250 * 2 ** attempt++);
+        setTimeout(connect, delay);
+      };
+    };
+
+    connect();
 
     return () => {
-      socket.current?.close()
+      alive = false;
+      socket.current?.close();
       socket.current = null;
     };
   }, []);

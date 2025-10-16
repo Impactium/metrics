@@ -1,0 +1,21 @@
+{
+  "configurations": [
+    {
+      "type": "node-terminal",
+      "name": "Start API",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/api",
+      "command": "air",
+      "envFile": "${workspaceFolder}/.env",
+    },
+    {
+      "type": "node-terminal",
+      "name": "Start CLIENT",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/client",
+      "command": "pnpm run dev",
+      "envFile": "${workspaceFolder}/.env",
+      "preLaunchTask": "recreate"
+    }
+  ]
+}
