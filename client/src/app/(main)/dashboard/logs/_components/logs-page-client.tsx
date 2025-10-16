@@ -48,14 +48,14 @@ export function LogsPageClient({ initialLogs, initialStats, initialTranding }: L
                 break;
             }
 
-            ++stats[stats.length - 1][key];
+            stats[stats.length - 1][key] += stats[stats.length - 1][key];
 
             return stats;
           });
 
           setLogs(logs => [log, ...logs].slice(0, 256).sort((a, b) => a.timestamp - b.timestamp));
           setTranding(tranding => {
-            if (between(log.status, 400, 599)) {
+            if (between(log.status, 500, 599)) {
               tranding.errors.total++;
               tranding.errors.last++;
             }

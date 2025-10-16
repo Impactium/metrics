@@ -21,7 +21,6 @@ function getStatus(status: number): string {
 }
 
 function parsePath(path: string): { domain: string; path: string } {
-  // If path starts with http/https, extract domain
   if (path.startsWith('http://') || path.startsWith('https://')) {
     try {
       const url = new URL(path)
@@ -30,7 +29,7 @@ function parsePath(path: string): { domain: string; path: string } {
       return { domain: '', path }
     }
   }
-  // Otherwise, it's just a path
+
   return { domain: '', path }
 }
 

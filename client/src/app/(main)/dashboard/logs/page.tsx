@@ -9,7 +9,7 @@ export default async function () {
   const authorization = cookieStore.get(Authorization);
   if (!authorization) return null;
 
-  const logs = await fetch(`http://${SERVER_SSR}/api/logs?limit=1024`, {
+  const logs = await fetch(`http://${SERVER_SSR}/api/logs?limit=256`, {
     headers: {
       [Authorization]: authorization.value
     },
