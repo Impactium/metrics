@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -38,6 +39,28 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	r.Use(gin.LoggerWithFormatter(func(p gin.LogFormatterParams) string {
+		return fmt.Sprintf("[GIN] %d %s %s raw=%q ua=%q from=%s err=%v\n",
+			p.StatusCode, p.Method, p.Path, p.Request.URL.String(),
+			p.Request.UserAgent(), p.ClientIP, p.ErrorMessage)
+	}))
+
+	r.NoRoute(func(c *gin.Context) {
+		req := c.Request
+		log.Printf("[NOROUTE] %s %q host=%q raw=%q qs=%q upgrade=%q conn=%q",
+			req.Method, req.URL.Path, req.Host, req.URL.String(), req.URL.RawQuery,
+			req.Header.Get("Upgrade"), req.Header.Get("Connection"))
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"error": "not_found",
+			"path":  req.URL.Path,
+		})
+	})
+
+	r.NoMethod(func(c *gin.Context) {
+		log.Printf("[NOMETHOD] %s %q", c.Request.Method, c.Request.URL.Path)
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
+	})
 
 	broadcast.Setup()
 	defer broadcast.Broadcaster.Close()
