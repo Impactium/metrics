@@ -8,7 +8,7 @@ export namespace User {
     return fetch('/api/auth/profile', {
       method: 'GET',
       credentials: 'include',
-      next: { tags: ['profile' ] }
+      next: { tags: ['profile'] }
     }).then(response => response.json().then(payload => typeof payload.data.id === 'undefined' ? null : payload.data));
   }
 

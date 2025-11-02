@@ -51,7 +51,7 @@ const NavItemExpanded = ({
         <CollapsibleTrigger asChild>
           {item.subItems ? (
             <SidebarMenuButton
-              disabled={item.comingSoon}
+              disabled={item.comingSoon || item.disabled}
               isActive={isActive(item.url, item.subItems)}
               tooltip={item.title}
             >
@@ -63,7 +63,7 @@ const NavItemExpanded = ({
           ) : (
             <SidebarMenuButton
               asChild
-              aria-disabled={item.comingSoon}
+              aria-disabled={item.comingSoon || item.disabled}
               isActive={isActive(item.url)}
               tooltip={item.title}
             >
@@ -80,7 +80,7 @@ const NavItemExpanded = ({
             <SidebarMenuSub>
               {item.subItems.map((subItem) => (
                 <SidebarMenuSubItem key={subItem.title}>
-                  <SidebarMenuSubButton aria-disabled={subItem.comingSoon} isActive={isActive(subItem.url)} asChild>
+                  <SidebarMenuSubButton aria-disabled={subItem.comingSoon || item.disabled} isActive={isActive(subItem.url)} asChild>
                     <Link href={subItem.url} target={subItem.newTab ? "_blank" : undefined}>
                       {subItem.icon && <Icon name={subItem.icon} />}
                       <span>{subItem.title}</span>
@@ -109,7 +109,7 @@ const NavItemCollapsed = ({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <SidebarMenuButton
-            disabled={item.comingSoon}
+            disabled={item.comingSoon || item.disabled}
             tooltip={item.title}
             isActive={isActive(item.url, item.subItems)}
           >
@@ -125,7 +125,7 @@ const NavItemCollapsed = ({
                 key={subItem.title}
                 asChild
                 className="focus-visible:ring-0"
-                aria-disabled={subItem.comingSoon}
+                aria-disabled={subItem.comingSoon || item.disabled}
                 isActive={isActive(subItem.url)}
               >
                 <Link href={subItem.url} target={subItem.newTab ? "_blank" : undefined}>
@@ -172,7 +172,7 @@ export function NavMain({ items }: NavMainProps) {
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
                           asChild
-                          aria-disabled={item.comingSoon}
+                          aria-disabled={item.comingSoon || item.disabled}
                           tooltip={item.title}
                           isActive={isItemActive(item.url)}
                         >

@@ -54,14 +54,16 @@ func main() {
 
 	// speedtest
 	api.POST("/speedtest", handlers.SpeedtestCreate)
-	api.GET("/speedtest", middlewares.AuthRequired(), handlers.SpeedtestList)
-	api.GET("/speedtest/tranding", middlewares.AuthRequired(), handlers.SpeedtestTrending)
+	speedtest := api.Group("/speedtest", middlewares.AuthRequired(), middlewares.PermissionsRequired())
+	speedtest.GET("/", handlers.SpeedtestList)
+	speedtest.GET("/tranding", handlers.SpeedtestTrending)
 
 	// logs
 	api.POST("/logs", handlers.LogCreate)
-	api.GET("/logs", middlewares.AuthRequired(), handlers.LogList)
-	api.GET("/logs/stats", middlewares.AuthRequired(), handlers.LogStats)
-	api.GET("/logs/count", middlewares.AuthRequired(), handlers.LogCount)
+	logs := api.Group("/logs", middlewares.AuthRequired(), middlewares.PermissionsRequired())
+	logs.GET("/", handlers.LogList)
+	logs.GET("/stats", handlers.LogStats)
+	logs.GET("/count", handlers.LogCount)
 
 	srv := &http.Server{
 		Addr:              ":1337",

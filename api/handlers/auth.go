@@ -45,7 +45,7 @@ func Register(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	if existing, err := storage.GetUserByEmail(ctx, strings.ToLower(payload.Email)); err == nil && existing != nil {
+	if existing, err := storage.UserGetByEmail(ctx, strings.ToLower(payload.Email)); err == nil && existing != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
 		return
 	}
@@ -63,7 +63,7 @@ func Register(c *gin.Context) {
 		UpdatedAt:    time.Now(),
 	}
 
-	if err := storage.CreateUser(ctx, u); err != nil {
+	if err := storage.UserCreate(ctx, u); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "db error"})
 			return
@@ -89,7 +89,7 @@ func Login(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	u, err := storage.GetUserByEmail(ctx, strings.ToLower(payload.Email))
+	u, err := storage.UserGetByEmail(ctx, strings.ToLower(payload.Email))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
@@ -103,9 +103,9 @@ func Login(c *gin.Context) {
 	if payload.Remember != nil {
 		remember = *payload.Remember
 	}
-	ttl := 24 * time.Hour
+	ttl := time.Hour * 24 * 7
 	if remember {
-		ttl = 7 * 24 * time.Hour
+		ttl = ttl * 30
 	}
 	token, err := middlewares.SignJWT(u.ID.Hex(), u.Email, ttl)
 	if err != nil {
@@ -119,7 +119,19 @@ func Login(c *gin.Context) {
 }
 
 func Profile(c *gin.Context) {
-	user, _ := c.Get("user")
+	u, _ := c.MustGet("user").(models.User)
+
+	user, err := storage.UserGetByEmail(c, u.Email)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusNotFound, nil)
+		return
+	}
+
+	user.Permissions, err = storage.PermissionsGetByUserId(c, u.ID)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, nil)
+		return
+	}
 
 	c.JSON(http.StatusOK, user)
 }

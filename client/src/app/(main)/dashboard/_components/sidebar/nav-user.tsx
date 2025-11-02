@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 export function NavUser() {
   const [user, setUser] = useState<any>(null);
 
-  useEffect(() =>{
+  useEffect(() => {
     User.use().then(setUser);
   }, []);
 
@@ -29,8 +29,6 @@ export function NavUser() {
   if (!user) {
     return;
   }
-
-  console.log(user);
 
   return (
     <SidebarMenu>
@@ -41,7 +39,7 @@ export function NavUser() {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg grayscale" style={{ transform: 'translate(-8px) '}}>
+              <Avatar className="h-8 w-8 rounded-lg grayscale" style={{ transform: 'translate(-8px) ' }}>
                 <AvatarImage src={User.avatar(user)} alt={user.email} />
                 <AvatarFallback className="rounded-lg">{getInitials(user.email)}</AvatarFallback>
               </Avatar>

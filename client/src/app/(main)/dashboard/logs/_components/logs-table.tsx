@@ -5,6 +5,7 @@ import s from './logs-table.module.css';
 import { cn } from '@impactium/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 export namespace LogsTable {
   export interface Props {
@@ -65,7 +66,7 @@ export function LogsTable({ logs }: LogsTable.Props) {
               <span>{date.toLocaleTimeString() + ':' + date.getMilliseconds()}</span>
             </div>
             <div className='flex items-center gap-2 px-3 min-w-[128px] justify-start'>
-              <span data-badge data-method>{log.method}</span>             
+              <span data-badge data-method>{log.method}</span>
               <span>{date.toLocaleDateString()}</span>
             </div>
             <div className='flex items-center px-3 flex-1 min-w-0'>
@@ -73,7 +74,14 @@ export function LogsTable({ logs }: LogsTable.Props) {
               <span className={`text-[var(--${status === 'error' ? 'red' : 'gray'}-1000)]! font-mono`}>{domain}</span>
               <span className='truncate font-mono'>{path}</span>
               {log.data && (
-                <Button variant='link' size='icon-sm' className='h-3.5 w-3.5 rounded-[4] cursor-pointer ml-auto'><Icon className='size-3.5' name='Braces' /></Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant='link' size='icon-sm' className='h-3.5 w-3.5 rounded-[4] cursor-pointer ml-auto'><Icon className='size-3.5' name='Braces' /></Button>
+                  </PopoverTrigger>
+                  <PopoverContent>
+                    {JSON.stringify(log.data, null, 2)}
+                  </PopoverContent>
+                </Popover>
               )}
             </div>
           </div>

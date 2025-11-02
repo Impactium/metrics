@@ -17,6 +17,7 @@ export interface NavMainItem {
   comingSoon?: boolean;
   newTab?: boolean;
   isNew?: boolean;
+  disabled?: boolean;
 }
 
 export interface NavGroup {
@@ -24,43 +25,3 @@ export interface NavGroup {
   label?: string;
   items: NavMainItem[];
 }
-
-export const sidebarItems: NavGroup[] = [
-  {
-    id: 1,
-    label: "Dashboards",
-    items: [
-      {
-        title: "Speedtest",
-        url: "/dashboard/speedtest",
-        icon: 'Gauge',
-      },
-      {
-        title: "Logs",
-        url: "/dashboard/logs",
-        icon: 'FunctionSquare',
-      }
-    ],
-  },
-  {
-    id: 2,
-    label: "Pages",
-    items: [
-      // {
-      //   title: "Email",
-      //   url: "/dashboard/coming-soon",
-      //   icon: 'Mail',
-      //   comingSoon: true,
-      // },
-      {
-        title: "Authentication",
-        url: "/auth",
-        icon: 'Fingerprint',
-        subItems: [
-          { title: "Login", url: "/auth/login", newTab: true },
-          { title: "Register", url: "/auth/register", newTab: true },
-        ],
-      },
-    ],
-  }, 
-];

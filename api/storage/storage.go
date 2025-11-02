@@ -10,11 +10,12 @@ import (
 )
 
 var (
-	client     *mongo.Client
-	db         *mongo.Database
-	speedtests *mongo.Collection
-	users      *mongo.Collection
-	logs       *mongo.Collection
+	client      *mongo.Client
+	db          *mongo.Database
+	permissions *mongo.Collection
+	speedtests  *mongo.Collection
+	users       *mongo.Collection
+	logs        *mongo.Collection
 )
 
 func Connect(ctx context.Context) error {
@@ -32,6 +33,7 @@ func Connect(ctx context.Context) error {
 	}
 	client = c
 	db = client.Database(name)
+	permissions = db.Collection("permissions")
 	speedtests = db.Collection("speedtests")
 	users = db.Collection("users")
 	logs = db.Collection("logs")

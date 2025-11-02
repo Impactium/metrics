@@ -8,12 +8,12 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func CreateUser(ctx context.Context, u *models.User) error {
+func UserCreate(ctx context.Context, u *models.User) error {
 	_, err := users.InsertOne(ctx, u)
 	return err
 }
 
-func GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+func UserGetByEmail(ctx context.Context, email string) (*models.User, error) {
 	var u models.User
 	err := users.FindOne(ctx, bson.M{"email": email}).Decode(&u)
 	if err != nil {
@@ -22,7 +22,7 @@ func GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	return &u, nil
 }
 
-func GetUserByID(ctx context.Context, id primitive.ObjectID) (*models.User, error) {
+func UserGetByID(ctx context.Context, id primitive.ObjectID) (*models.User, error) {
 	var u models.User
 	err := users.FindOne(ctx, bson.M{"_id": id}).Decode(&u)
 	if err != nil {

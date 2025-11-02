@@ -2,21 +2,23 @@ package middlewares
 
 import (
 	"metrics/constraints"
+	"metrics/models"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type User struct {
+type tokenUser struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
 }
 
 type Claims struct {
-	User
+	tokenUser
 	jwt.RegisteredClaims
 }
 
@@ -27,7 +29,7 @@ func SignJWT(ID, Email string, ttl time.Duration) (string, error) {
 	}
 	now := time.Now()
 	claims := &Claims{
-		User: User{ID, Email},
+		tokenUser: tokenUser{ID, Email},
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
@@ -40,10 +42,9 @@ func SignJWT(ID, Email string, ttl time.Duration) (string, error) {
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.GetHeader(constraints.Authorization)
-		if cookie, err := c.Request.Cookie(constraints.Authorization); err == nil {
+		if cookie, err := c.Request.Cookie(constraints.Authorization); err == nil && token == "" {
 			token = cookie.Value
 		}
-
 		if token == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no token"})
 			return
@@ -53,18 +54,29 @@ func AuthRequired() gin.HandlerFunc {
 		if secret == "" {
 			secret = constraints.DevSecret
 		}
-		result, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		res, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 			return []byte(secret), nil
 		})
-		if err != nil || !result.Valid {
+		if err != nil || !res.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
 
-		claims := result.Claims.(*Claims)
-		c.Set("user", User{
-			ID:    claims.User.ID,
-			Email: claims.User.Email,
+		claims, ok := res.Claims.(*Claims)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid claims"})
+			return
+		}
+
+		oid, err := primitive.ObjectIDFromHex(claims.tokenUser.ID)
+		if err != nil || oid.IsZero() {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid user id"})
+			return
+		}
+
+		c.Set("user", models.User{
+			ID:    oid,
+			Email: claims.Email,
 		})
 		c.Next()
 	}
